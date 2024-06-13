@@ -96,7 +96,7 @@ aqi_lvl = displayio.TileGrid(aqi_sheet,
                                tile_width=13,
                                tile_height=5,
                                default_tile=0)
-aqi_lvl.x = 3
+aqi_lvl.x = 2
 aqi_lvl.y = y_center - 4
 
 mta_sheet, mta_palette = imageload.load("/img/mta_sheet.bmp",
@@ -178,11 +178,11 @@ else:
 clock_label = Label(large_font, anchor_point=(0.5,0.5), anchored_position=(44, 7))
 
 weather_label = Label(small_font)
-weather_label.x = 4
+weather_label.x = 2
 weather_label.y = y_center + 6
 
 aqi_label = Label(small_font)
-aqi_label.x = 4
+aqi_label.x = 2
 aqi_label.y = 6
 
 arrival_label_1 = Label(small_font, color=color[4], anchor_point=(1.0,0.0), anchored_position=(display.width, cieling))
