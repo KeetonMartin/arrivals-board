@@ -429,7 +429,7 @@ class Arrivals:
     def update_display(self, arrival_data, bullet_alert_flag, now):
         if arrival_data is None:
             arrival_label_1.text = "Error"
-            arrival_label_2.text = "Error"
+            arrival_label_2.text = ""
             for row in range(2):
                 mta_bullets[0, row] = bullet_index["MTA"]
             return
@@ -445,6 +445,7 @@ class Arrivals:
 
         affected_lines = [alert[0] for alert in arrival_data["alerts"]]  # if alert[0] in self.subway_lines]
 
+        arrival_times = []
         for i in range(rows):
             self.arrivals_queue[i]["Line"] = arrival_data[self.default_direction][i]["Line"]
             self.arrivals_queue[i]["Arrival"] = arrival_data[self.default_direction][i]["Arrival"]
@@ -454,26 +455,28 @@ class Arrivals:
             if self.arrivals_queue[i]["Line"] in affected_lines:
                 self.arrivals_queue[i]["ALERT"] = True
 
+            arrival_time = self.arrivals_queue[i]["Arrival"]
+
+            arrival_time = str(arrival_time)
+
+            arrival_times.append(arrival_time)
+
+        if len(arrival_times) == 1:
+            arrival_label_1.text = arrival_times[0]
+            arrival_label_2.text = ""
+        elif len(arrival_times) > 1:
+            arrival_label_1.text = arrival_times[0]
+            arrival_label_2.text = ",".join(arrival_times[:2])
+
         for row, train in enumerate(self.arrivals_queue):
-            arrival_time = train["Arrival"]
-            if arrival_time == 0:
-                arrival_time = "Due"
-            else:
-                arrival_time = f"{arrival_time}min"
-
-            if row == 0:
-                arrival_label_1.text = arrival_time
-
-            elif row == 1:
-                arrival_label_2.text = arrival_time
-
+            if row >= 2:
+                break
             if train["ALERT"] is True and bullet_alert_flag is True:
                 if train["FLASH"]:
                     if now >= train["PREV_TIME"] + train["FLASH_OFF"]:
                         self.prev_time = now
                         mta_bullets[0, row] = bullet_index["ALERT"]
                         self.alert_flash = False
-
                 elif not train["FLASH"]:
                     if now >= train["PREV_TIME"] + train["FLASH_ON"]:
                         self.prev_time = now
@@ -485,6 +488,7 @@ class Arrivals:
         if rows == 1:
             mta_bullets[0, 1] = bullet_index["MTA"]
             arrival_label_2.text = "-1"
+
 
     def alert_text(self, arrival_data):
         if arrival_data is None or not arrival_data["alerts"]:
