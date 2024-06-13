@@ -169,7 +169,7 @@ south_rectangle = vectorio.Rectangle(pixel_shader=color,
 south_rectangle.hidden = True
 
 if not DEBUG:
-    large_font = bitmap_font.load_font("fonts/helvR14.bdf") 
+    large_font = bitmap_font.load_font("fonts/helvR14.bdf")
     small_font = bitmap_font.load_font("fonts/helvR10.bdf")
     arrival_board_font = bitmap_font.load_font("fonts/helv-9.bdf")
 else:
@@ -296,48 +296,71 @@ class Arrivals:
         self.no_service_board = "No\nSer\nvice\n"
         self.default_direction = secrets['default_direction']
         self.arrivals_queue = [
-                            {"Line" : None,
-                             "Arrival" : 0,
-                             "ALERT" : False,
-                             "FLASH_ON" : 1,
-                             "FLASH_OFF" : 8,
-                             "FLASH" : False,
-                             "PREV_TIME" : -1},
-                             {"Line" : None,
-                             "Arrival" : 0,
-                             "ALERT" : False,
-                             "FLASH_ON" : 1,
-                             "FLASH_OFF" : 8,
-                             "FLASH" : False,
-                             "PREV_TIME" : -1}]
+            {"Line": None,
+             "Arrival": 0,
+             "ALERT": False,
+             "FLASH_ON": 1,
+             "FLASH_OFF": 8,
+             "FLASH": False,
+             "PREV_TIME": -1},
+            {"Line": None,
+             "Arrival": 0,
+             "ALERT": False,
+             "FLASH_ON": 1,
+             "FLASH_OFF": 8,
+             "FLASH": False,
+             "PREV_TIME": -1}]
 
     def api_call(self):
         try:
             if len(self.headers) == 1:
+                print("Fetching data with single header")
+                print("URL:", self.url)
+                print("Headers:", self.headers[0])
                 arrival_data = network.fetch_data(self.url, json_path=[], headers=self.headers[0])
+                print("Raw arrival data (single header):", arrival_data)
             else:
+                print("Fetching data with multiple headers")
                 arrival_data = {"North": [], "South": [], "alerts": []}
 
                 for i in range(len(self.headers)):
+                    print(f"Fetching data with header {i}")
+                    print("URL:", self.url)
+                    print("Headers:", self.headers[i])
                     data = network.fetch_data(self.url, json_path=[], headers=self.headers[i])
-                    arrival_data["North"] += data["North"]
+                    print(f"Raw data fetched with header {i}:", data)
+                    if "North" in data:
+                        arrival_data["North"] += data["North"]
+                    if "South" in data:
+                        arrival_data["South"] += data["South"]
                     arrival_data["North"] = sorted(arrival_data["North"], key=lambda x: x["Arrival"])
-
-                    arrival_data["South"] += data["South"]
                     arrival_data["South"] = sorted(arrival_data["South"], key=lambda x: x["Arrival"])
+
+            # Keep only the next train for each direction
+            for direction in ["North", "South"]:
+                grouped_arrivals = {}
+                for arrival in arrival_data[direction]:
+                    direction_key = arrival["Direction"]
+                    if direction_key not in grouped_arrivals or arrival["Arrival"] < grouped_arrivals[direction_key]["Arrival"]:
+                        grouped_arrivals[direction_key] = arrival
+                arrival_data[direction] = list(grouped_arrivals.values())
+
+            print("Processed arrival data:", arrival_data)  # Debug print to see the structure of arrival_data
         except Exception as e:
             print("Arrival API call ERROR:", e)
             return None
 
         return arrival_data
 
+
+
     def update_board(self, arrival_data):
         if arrival_data is None:
             arrivals_north_label.text = "err\nerr\nerr\nerr"
             arrivals_south_label.text = "err\nerr\nerr\nerr"
             for i in range(4):
-                arrivals_north_bullets[0,i] = bullet_index["MTA"]
-                arrivals_south_bullets[0,i] = bullet_index["MTA"]
+                arrivals_north_bullets[0, i] = bullet_index["MTA"]
+                arrivals_south_bullets[0, i] = bullet_index["MTA"]
 
             return
 
@@ -350,17 +373,17 @@ class Arrivals:
                 arrivals_south_label.text = self.no_service_board
                 for i in range(4):
                     if direction == "North":
-                        arrivals_north_bullets[0,i] = bullet_index["MTA"]
+                        arrivals_north_bullets[0, i] = bullet_index["MTA"]
                     else:
-                        arrivals_south_bullets[0,i] = bullet_index["MTA"]
+                        arrivals_south_bullets[0, i] = bullet_index["MTA"]
 
                 continue
 
             for i in range(rows):
                 if direction == "North":
-                    arrivals_north_bullets[0,i] = bullet_index[arrival_data["North"][i]["Line"]]
+                    arrivals_north_bullets[0, i] = bullet_index[arrival_data["North"][i]["Line"]]
                 else:
-                    arrivals_south_bullets[0,i] = bullet_index[arrival_data["South"][i]["Line"]]
+                    arrivals_south_bullets[0, i] = bullet_index[arrival_data["South"][i]["Line"]]
                 arrival_time = arrival_data[direction][i]["Arrival"]
 
                 if arrival_data[direction][0]["Arrival"] != 0:
@@ -377,7 +400,7 @@ class Arrivals:
                         south_rectangle.hidden = False
 
                 elif arrival_time < 10:
-                    arrival_time = f" {arrival_data[direction][i]["Arrival"]}"
+                    arrival_time = f" {arrival_data[direction][i]['Arrival']}"
 
                 else:
                     arrival_time = str(arrival_data[direction][i]["Arrival"])
@@ -391,9 +414,9 @@ class Arrivals:
             if rows < 4:
                 for n in range(rows, 4):
                     if direction == "North":
-                        arrivals_north_bullets[0,n] = bullet_index["BLANK"]
+                        arrivals_north_bullets[0, n] = bullet_index["BLANK"]
                     else:
-                        arrivals_south_bullets[0,n] = bullet_index["BLANK"]
+                        arrivals_south_bullets[0, n] = bullet_index["BLANK"]
 
     def scroll_board_directions(self):
         while arrivals_south_arrow.y < display.height:
@@ -408,19 +431,19 @@ class Arrivals:
             arrival_label_1.text = "Error"
             arrival_label_2.text = "Error"
             for row in range(2):
-                mta_bullets[0,row] = bullet_index["MTA"]
+                mta_bullets[0, row] = bullet_index["MTA"]
             return
 
         rows = min(self.default_rows, len(arrival_data[self.default_direction]))
 
         if rows == 0:
             for row in range(2):
-                mta_bullets[0,row] = bullet_index["MTA"]
+                mta_bullets[0, row] = bullet_index["MTA"]
             arrival_label_1.text = "-1"
             arrival_label_2.text = "No Svr"
             return
 
-        affected_lines = [alert[0] for alert in arrival_data["alerts"]] # if alert[0] in self.subway_lines]
+        affected_lines = [alert[0] for alert in arrival_data["alerts"]]  # if alert[0] in self.subway_lines]
 
         for i in range(rows):
             self.arrivals_queue[i]["Line"] = arrival_data[self.default_direction][i]["Line"]
@@ -446,25 +469,25 @@ class Arrivals:
 
             if train["ALERT"] is True and bullet_alert_flag is True:
                 if train["FLASH"]:
-                    if (now >= train["PREV_TIME"] + train["FLASH_OFF"]):
+                    if now >= train["PREV_TIME"] + train["FLASH_OFF"]:
                         self.prev_time = now
-                        mta_bullets[0,row] = bullet_index["ALERT"]
+                        mta_bullets[0, row] = bullet_index["ALERT"]
                         self.alert_flash = False
 
-                elif train["FLASH"] is False:
-                    if (now >= train["PREV_TIME"] + train["FLASH_ON"]):
+                elif not train["FLASH"]:
+                    if now >= train["PREV_TIME"] + train["FLASH_ON"]:
                         self.prev_time = now
-                        mta_bullets[0,row] = bullet_index[train["Line"]]
+                        mta_bullets[0, row] = bullet_index[train["Line"]]
                         self.alert_flash = True
             else:
-                mta_bullets[0,row] = bullet_index[train["Line"]]
+                mta_bullets[0, row] = bullet_index[train["Line"]]
 
         if rows == 1:
-            mta_bullets[0,1] = bullet_index["MTA"]
+            mta_bullets[0, 1] = bullet_index["MTA"]
             arrival_label_2.text = "-1"
 
     def alert_text(self, arrival_data):
-        if arrival_data is None or arrival_data["alerts"] == []:
+        if arrival_data is None or not arrival_data["alerts"]:
             return "No active alerts."
 
         i = 1
@@ -474,6 +497,7 @@ class Arrivals:
             i += 1
 
         return alert_string
+
 
 def display_alt_text():
     arrival_label_2.text = ""
