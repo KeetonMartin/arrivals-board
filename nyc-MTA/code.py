@@ -297,14 +297,14 @@ class Arrivals:
         self.default_direction = secrets['default_direction']
         self.arrivals_queue = [
             {"Line": None,
-             "Arrival": 0,
+             "Arrivals": [],
              "ALERT": False,
              "FLASH_ON": 1,
              "FLASH_OFF": 8,
              "FLASH": False,
              "PREV_TIME": -1},
             {"Line": None,
-             "Arrival": 0,
+             "Arrivals": [],
              "ALERT": False,
              "FLASH_ON": 1,
              "FLASH_OFF": 8,
@@ -336,14 +336,17 @@ class Arrivals:
                     arrival_data["North"] = sorted(arrival_data["North"], key=lambda x: x["Arrival"])
                     arrival_data["South"] = sorted(arrival_data["South"], key=lambda x: x["Arrival"])
 
-            # Keep only the next train for each direction
+            # Filter duplicates and keep multiple arrivals for each line
             for direction in ["North", "South"]:
                 grouped_arrivals = {}
                 for arrival in arrival_data[direction]:
-                    direction_key = arrival["Direction"]
-                    if direction_key not in grouped_arrivals or arrival["Arrival"] < grouped_arrivals[direction_key]["Arrival"]:
-                        grouped_arrivals[direction_key] = arrival
-                arrival_data[direction] = list(grouped_arrivals.values())
+                    line = arrival["Line"]
+                    if line not in grouped_arrivals:
+                        grouped_arrivals[line] = []
+                    # Add only unique arrival times
+                    if not grouped_arrivals[line] or grouped_arrivals[line][-1]["Arrival"] != arrival["Arrival"]:
+                        grouped_arrivals[line].append(arrival)
+                arrival_data[direction] = grouped_arrivals
 
             print("Processed arrival data:", arrival_data)  # Debug print to see the structure of arrival_data
         except Exception as e:
@@ -351,6 +354,9 @@ class Arrivals:
             return None
 
         return arrival_data
+
+
+
 
 
 
@@ -393,7 +399,6 @@ class Arrivals:
                         south_rectangle.hidden = True
 
                 if arrival_time == 0:
-                    arrival_time = "Due"
                     if direction == "North":
                         north_rectangle.hidden = False
                     else:
@@ -429,55 +434,52 @@ class Arrivals:
     def update_display(self, arrival_data, bullet_alert_flag, now):
         if arrival_data is None:
             arrival_label_1.text = "Error"
-            arrival_label_2.text = ""
+            arrival_label_2.text = "Error"
             for row in range(2):
                 mta_bullets[0, row] = bullet_index["MTA"]
             return
 
-        rows = min(self.default_rows, len(arrival_data[self.default_direction]))
+        directions = ["North", "South"]
+        queue_index = 0
 
-        if rows == 0:
-            for row in range(2):
-                mta_bullets[0, row] = bullet_index["MTA"]
-            arrival_label_1.text = "-1"
-            arrival_label_2.text = "No Svr"
-            return
+        for direction in directions:
+            if queue_index >= len(self.arrivals_queue):
+                break
 
-        affected_lines = [alert[0] for alert in arrival_data["alerts"]]  # if alert[0] in self.subway_lines]
+            line_arrivals = arrival_data[direction]
+            for line, arrivals in line_arrivals.items():
+                if queue_index >= len(self.arrivals_queue):
+                    break
 
-        arrival_times = []
-        for i in range(rows):
-            self.arrivals_queue[i]["Line"] = arrival_data[self.default_direction][i]["Line"]
-            self.arrivals_queue[i]["Arrival"] = arrival_data[self.default_direction][i]["Arrival"]
-            self.arrivals_queue[i]["FLASH"] = self.alert_flash
-            self.arrivals_queue[i]["PREV_TIME"] = self.prev_time
-            self.arrivals_queue[i]["ALERT"] = False
-            if self.arrivals_queue[i]["Line"] in affected_lines:
-                self.arrivals_queue[i]["ALERT"] = True
+                self.arrivals_queue[queue_index]["Line"] = line
+                self.arrivals_queue[queue_index]["Arrivals"] = [arrival["Arrival"] for arrival in arrivals[:3]]  # Ensure unique and next 3 arrivals
+                self.arrivals_queue[queue_index]["FLASH"] = self.alert_flash
+                self.arrivals_queue[queue_index]["PREV_TIME"] = self.prev_time
+                self.arrivals_queue[queue_index]["ALERT"] = False
 
-            arrival_time = self.arrivals_queue[i]["Arrival"]
+                queue_index += 1
 
-            arrival_time = str(arrival_time)
-
-            arrival_times.append(arrival_time)
-
-        if len(arrival_times) == 1:
-            arrival_label_1.text = arrival_times[0]
-            arrival_label_2.text = ""
-        elif len(arrival_times) > 1:
-            arrival_label_1.text = arrival_times[0]
-            arrival_label_2.text = ",".join(arrival_times[:2])
+        affected_lines = [alert[0] for alert in arrival_data["alerts"]]
 
         for row, train in enumerate(self.arrivals_queue):
-            if row >= 2:
-                break
-            if train["ALERT"] is True and bullet_alert_flag is True:
+            if train["Line"] is None:
+                continue
+
+            arrival_times = train["Arrivals"]
+            arrival_times_str = ",".join([str(t) for t in arrival_times])
+
+            if row == 0:
+                arrival_label_1.text = arrival_times_str
+            elif row == 1:
+                arrival_label_2.text = arrival_times_str
+
+            if train["Line"] in affected_lines and bullet_alert_flag:
                 if train["FLASH"]:
                     if now >= train["PREV_TIME"] + train["FLASH_OFF"]:
                         self.prev_time = now
                         mta_bullets[0, row] = bullet_index["ALERT"]
                         self.alert_flash = False
-                elif not train["FLASH"]:
+                else:
                     if now >= train["PREV_TIME"] + train["FLASH_ON"]:
                         self.prev_time = now
                         mta_bullets[0, row] = bullet_index[train["Line"]]
@@ -485,9 +487,12 @@ class Arrivals:
             else:
                 mta_bullets[0, row] = bullet_index[train["Line"]]
 
-        if rows == 1:
-            mta_bullets[0, 1] = bullet_index["MTA"]
-            arrival_label_2.text = "-1"
+        if queue_index < 2:
+            for row in range(queue_index, 2):
+                mta_bullets[0, row] = bullet_index["MTA"]
+                if row == 1:
+                    arrival_label_2.text = "-1"
+
 
 
     def alert_text(self, arrival_data):
