@@ -109,8 +109,8 @@ mta_bullets = displayio.TileGrid(mta_sheet,
                                tile_width=8,
                                tile_height=8,
                                default_tile=27)
-mta_bullets.x = 24
-mta_bullets.y = y_center - 1
+mta_bullets.x = 19
+mta_bullets.y = y_center - 2
 
 arrivals_north_bullets = displayio.TileGrid(mta_sheet,
                                pixel_shader=mta_palette,
@@ -466,7 +466,7 @@ class Arrivals:
                 continue
 
             arrival_times = train["Arrivals"]
-            arrival_times_str = ",".join([str(t) for t in arrival_times])
+            arrival_times_str = ".".join([str(t) for t in arrival_times])
 
             if row == 0:
                 arrival_label_1.text = arrival_times_str
