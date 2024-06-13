@@ -3,6 +3,7 @@
 These files power a 64x32 RGB matrix display that shows arrival times for the New York City Subway or the Washington DC Metro Rail. I am currently using an Adafruit Matrixportal S3 micocontroller. It was vaguely inspired by Tidbyt products, but mostly just the form factor. You can [find instructions](#setup) on how to set this up yourself at the bottom.
 
 <img src="/example.jpg" alt="example">
+<img src="/photo-examples/closeUp.jpeg" alt="closeUp">
 
 
 ## Overview
