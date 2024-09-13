@@ -11,6 +11,8 @@ from adafruit_matrixportal.network import Network
 from adafruit_matrixportal.matrix import Matrix
 import adafruit_imageload as imageload
 import supervisor
+import gc
+import wifi
 
 try:
     from secrets import secrets
@@ -290,7 +292,17 @@ class Arrivals:
                              "FLASH_OFF" : 8,
                              "FLASH" : False,
                              "PREV_TIME" : -1}]
-
+    def wifi_lost_message(self):
+        if default_group.hidden:
+            change_screen()
+        arrival_label_1.color = color[1]
+        arrival_label_2.color = color[1]
+        arrival_label_1.text = "WiFi "
+        arrival_label_2.text = "LOST" 
+        
+        for row in range(2):
+            wmata_bullets[0,row] = bullet_index["WMATA"]
+            
     def api_call(self):
         try:
             arrivals_data = network.fetch_data(self.url, json_path=[], headers=self.headers)
@@ -302,6 +314,10 @@ class Arrivals:
         return arrivals_data
 
     def update_board(self, arrival_data):
+        if not wifi.radio.connected:
+            self.wifi_lost_message()
+            return
+        
         if arrival_data is None:
             arrivals_north_label.text = "err\nerr\nerr\nerr"
             arrivals_south_label.text = "err\nerr\nerr\nerr"
@@ -374,6 +390,10 @@ class Arrivals:
         arrivals_south_arrow.y = -28
 
     def update_display(self, arrival_data, bullet_alert_flag, now):
+        if not wifi.radio.connected:
+            self.wifi_lost_message()
+            return
+        
         if arrival_data is None:
             arrival_label_1.text = "Error"
             arrival_label_2.text = "Error"
@@ -390,7 +410,7 @@ class Arrivals:
             arrival_label_2.text = "No Srv"
             return
 
-        affected_lines = [alert[0] for alert in arrival_data["alerts"]] # if alert[0] in self.subway_lines]
+        affected_lines = [alert[0] for alert in arrival_data["alerts"]]
 
         for i in range(rows):
             self.arrivals_queue[i]["Line"] = arrival_data[self.default_direction][i]["Line"]
@@ -521,7 +541,7 @@ default_group.hidden = False
 arrivals_group.hidden = True
 
 while True:
-    #gc.collect()
+    gc.collect()
     event = keys.events.get()
 
     if clock_check is None or time.monotonic() > clock_check + 3600:

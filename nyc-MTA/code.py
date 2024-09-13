@@ -12,6 +12,7 @@ from adafruit_matrixportal.matrix import Matrix
 import adafruit_imageload as imageload
 import supervisor
 import gc
+import wifi
 
 DEBUG = False
 bullet_index = {"A" : 0,
@@ -72,8 +73,6 @@ color[1] = 0xFF0000  # red
 color[2] = 0xCC4000  # amber
 color[3] = 0x00ff00  # greenish
 color[4] = 0x808183  # white
-color[5] = 0xFCCC0A  # Q line yellow
-color[6] = 0xFF6319  # B line orange
 
 # Create a TileGrid using the Bitmap and Palette
 y_center = display.height // 2
@@ -310,6 +309,16 @@ class Arrivals:
                              "FLASH_OFF" : 8,
                              "FLASH" : False,
                              "PREV_TIME" : -1}]
+    def wifi_lost_message(self):
+        if default_group.hidden:
+            change_screen()
+        arrival_label_1.color = color[1]
+        arrival_label_2.color = color[1]
+        arrival_label_1.text = "WiFi "
+        arrival_label_2.text = "LOST" 
+        
+        for row in range(2):
+            mta_bullets[0,row] = bullet_index["MTA"]
 
     def api_call(self):
         try:
@@ -332,6 +341,11 @@ class Arrivals:
         return arrival_data
 
     def update_board(self, arrival_data):
+        if not wifi.radio.connected:
+            self.wifi_lost_message()
+            
+            return
+        
         if arrival_data is None:
             arrivals_north_label.text = "err\nerr\nerr\nerr"
             arrivals_south_label.text = "err\nerr\nerr\nerr"
@@ -404,6 +418,10 @@ class Arrivals:
         arrivals_south_arrow.y = -39
 
     def update_display(self, arrival_data, bullet_alert_flag, now):
+        if not wifi.radio.connected:
+            self.wifi_lost_message()
+            return
+        
         if arrival_data is None:
             arrival_label_1.text = "Error"
             arrival_label_2.text = "Error"
@@ -420,7 +438,7 @@ class Arrivals:
             arrival_label_2.text = "No Svr"
             return
 
-        affected_lines = [alert[0] for alert in arrival_data["alerts"]] # if alert[0] in self.subway_lines]
+        affected_lines = [alert[0] for alert in arrival_data["alerts"]]
 
         for i in range(rows):
             self.arrivals_queue[i]["Line"] = arrival_data[self.default_direction][i]["Line"]
@@ -565,7 +583,7 @@ while True:
     if clock_check is None or time.monotonic() > clock_check + 3600:
         try:
             update_time(show_colon=True)
-            network.get_local_time()  # Synchronize Board's clock to Internet
+            network.get_local_time()  # Synchronize board's clock to Internet
         except RuntimeError as e:
             print("CLOCK UPDATE ERROR:", e)
 
@@ -605,8 +623,8 @@ while True:
 
         if api_fails > 5:
             print("API STUCK IN DOOM LOOP, RESET TIME~!")
-            clock_label.text = "RESET"
-            time.sleep(30)
+            clock_label.text = "reset"
+            time.sleep(120)
             supervisor.reload()
 
         alert_text = arrivals.alert_text(arrival_data)
