@@ -35,6 +35,7 @@ I’d also like to add support for other transit agencies, so if you live in a c
 ### Hardware
 These are the components I used in my build:
 - Adafruit [Matrixportal S3](https://learn.adafruit.com/adafruit-matrixportal-s3/overview)
+    - when configuring this thing, you can use the Installer Wizrd on [this site](https://circuitpython.org/board/adafruit_matrixportal_s3/)    
 - 64x32 RGB LED Matrix display - 4mm pitch, similar to [this one](https://www.adafruit.com/product/2278)
 - A [diffusion panel](https://www.adafruit.com/product/4749)
 - Wall power adapter to USB C (5V 2.5A), similar to [this one](https://www.adafruit.com/product/1995). Note: the linked adapter also requires a Micro B USB to USB C [adapter](https://www.adafruit.com/product/4299). If it's out of stock, it is also [available here](https://www.digikey.com/en/products/detail/adafruit-industries-llc/1995/7902284).
