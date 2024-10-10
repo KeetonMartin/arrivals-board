@@ -12,7 +12,6 @@ from adafruit_matrixportal.matrix import Matrix
 import adafruit_imageload as imageload
 import supervisor
 import gc
-import wifi
 
 DEBUG = False
 bullet_index = {"A" : 0,
@@ -56,6 +55,7 @@ except ImportError:
     print("WiFi secrets are kept in secrets.py, please add them there!")
     raise
 print("Time will be set for {}".format(secrets["timezone"]))
+print(secrets['ssid'])
 
 keys = keypad.Keys((board.BUTTON_UP,board.BUTTON_DOWN), value_when_pressed=False, pull=True)
 
@@ -73,6 +73,8 @@ color[1] = 0xFF0000  # red
 color[2] = 0xCC4000  # amber
 color[3] = 0x00ff00  # greenish
 color[4] = 0x808183  # white
+color[5] = 0xFCCC0A  # Q line yellow
+color[6] = 0xFF6319  # B line orange
 
 # Create a TileGrid using the Bitmap and Palette
 y_center = display.height // 2
@@ -95,7 +97,7 @@ aqi_lvl = displayio.TileGrid(aqi_sheet,
                                tile_width=13,
                                tile_height=5,
                                default_tile=0)
-aqi_lvl.x = 3
+aqi_lvl.x = 2
 aqi_lvl.y = y_center - 4
 
 mta_sheet, mta_palette = imageload.load("/img/mta_sheet.bmp",
@@ -108,8 +110,8 @@ mta_bullets = displayio.TileGrid(mta_sheet,
                                tile_width=8,
                                tile_height=8,
                                default_tile=27)
-mta_bullets.x = 24
-mta_bullets.y = y_center - 1
+mta_bullets.x = 19
+mta_bullets.y = y_center - 2
 
 arrivals_north_bullets = displayio.TileGrid(mta_sheet,
                                pixel_shader=mta_palette,
@@ -168,7 +170,7 @@ south_rectangle = vectorio.Rectangle(pixel_shader=color,
 south_rectangle.hidden = True
 
 if not DEBUG:
-    large_font = bitmap_font.load_font("fonts/helvR14.bdf") 
+    large_font = bitmap_font.load_font("fonts/helvR14.bdf")
     small_font = bitmap_font.load_font("fonts/helvR10.bdf")
     arrival_board_font = bitmap_font.load_font("fonts/helv-9.bdf")
 else:
@@ -177,11 +179,11 @@ else:
 clock_label = Label(large_font, anchor_point=(0.5,0.5), anchored_position=(44, 7))
 
 weather_label = Label(small_font)
-weather_label.x = 4
+weather_label.x = 2
 weather_label.y = y_center + 6
 
 aqi_label = Label(small_font)
-aqi_label.x = 4
+aqi_label.x = 2
 aqi_label.y = 6
 
 arrival_label_1 = Label(small_font, color=color[4], anchor_point=(1.0,0.0), anchored_position=(display.width, cieling))
@@ -295,63 +297,63 @@ class Arrivals:
         self.no_service_board = "No\nSer\nvice\n"
         self.default_direction = secrets['default_direction']
         self.arrivals_queue = [
-                            {"Line" : None,
-                             "Arrival" : 0,
-                             "ALERT" : False,
-                             "FLASH_ON" : 1,
-                             "FLASH_OFF" : 8,
-                             "FLASH" : False,
-                             "PREV_TIME" : -1},
-                             {"Line" : None,
-                             "Arrival" : 0,
-                             "ALERT" : False,
-                             "FLASH_ON" : 1,
-                             "FLASH_OFF" : 8,
-                             "FLASH" : False,
-                             "PREV_TIME" : -1}]
-    def wifi_lost_message(self):
-        if default_group.hidden:
-            change_screen()
-        arrival_label_1.color = color[1]
-        arrival_label_2.color = color[1]
-        arrival_label_1.text = "WiFi "
-        arrival_label_2.text = "LOST" 
-        
-        for row in range(2):
-            mta_bullets[0,row] = bullet_index["MTA"]
+            {"Line": None,
+             "Arrivals": [],
+             "ALERT": False,
+             "FLASH_ON": 1,
+             "FLASH_OFF": 8,
+             "FLASH": False,
+             "PREV_TIME": -1},
+            {"Line": None,
+             "Arrivals": [],
+             "ALERT": False,
+             "FLASH_ON": 1,
+             "FLASH_OFF": 8,
+             "FLASH": False,
+             "PREV_TIME": -1}]
+        self.rotation_index = 0
+        self.rotation_interval = 5  # Rotate every 10 seconds
+        self.prev_rotation_time = 0
+        self.alert_flash = False
+        self.prev_flash_time = 0
 
     def api_call(self):
         try:
-            if len(self.headers) == 1:
-                arrival_data = network.fetch_data(self.url, json_path=[], headers=self.headers[0])
-            else:
-                arrival_data = {"North": [], "South": [], "alerts": []}
+            all_arrivals = []
+            for header in self.headers:
+                data = network.fetch_data(self.url, json_path=[], headers=header)
+                if "North" in data:
+                    all_arrivals.extend(data["North"])
 
-                for i in range(len(self.headers)):
-                    data = network.fetch_data(self.url, json_path=[], headers=self.headers[i])
-                    arrival_data["North"] += data["North"]
-                    arrival_data["North"] = sorted(arrival_data["North"], key=lambda x: x["Arrival"])
+            # Sort all arrivals by arrival time
+            all_arrivals.sort(key=lambda x: x["Arrival"])
 
-                    arrival_data["South"] += data["South"]
-                    arrival_data["South"] = sorted(arrival_data["South"], key=lambda x: x["Arrival"])
+            # Group arrivals by line
+            grouped_arrivals = {}
+            for arrival in all_arrivals:
+                line = arrival["Line"]
+                if line not in grouped_arrivals:
+                    grouped_arrivals[line] = []
+                if not grouped_arrivals[line] or grouped_arrivals[line][-1]["Arrival"] != arrival["Arrival"]:
+                    grouped_arrivals[line].append(arrival)
+
+            return {"North": grouped_arrivals, "alerts": data.get("alerts", [])}
         except Exception as e:
             print("Arrival API call ERROR:", e)
             return None
 
-        return arrival_data
+
+
+
+
 
     def update_board(self, arrival_data):
-        if not wifi.radio.connected:
-            self.wifi_lost_message()
-            
-            return
-        
         if arrival_data is None:
             arrivals_north_label.text = "err\nerr\nerr\nerr"
             arrivals_south_label.text = "err\nerr\nerr\nerr"
             for i in range(4):
-                arrivals_north_bullets[0,i] = bullet_index["MTA"]
-                arrivals_south_bullets[0,i] = bullet_index["MTA"]
+                arrivals_north_bullets[0, i] = bullet_index["MTA"]
+                arrivals_south_bullets[0, i] = bullet_index["MTA"]
 
             return
 
@@ -364,17 +366,17 @@ class Arrivals:
                 arrivals_south_label.text = self.no_service_board
                 for i in range(4):
                     if direction == "North":
-                        arrivals_north_bullets[0,i] = bullet_index["MTA"]
+                        arrivals_north_bullets[0, i] = bullet_index["MTA"]
                     else:
-                        arrivals_south_bullets[0,i] = bullet_index["MTA"]
+                        arrivals_south_bullets[0, i] = bullet_index["MTA"]
 
                 continue
 
             for i in range(rows):
                 if direction == "North":
-                    arrivals_north_bullets[0,i] = bullet_index[arrival_data["North"][i]["Line"]]
+                    arrivals_north_bullets[0, i] = bullet_index[arrival_data["North"][i]["Line"]]
                 else:
-                    arrivals_south_bullets[0,i] = bullet_index[arrival_data["South"][i]["Line"]]
+                    arrivals_south_bullets[0, i] = bullet_index[arrival_data["South"][i]["Line"]]
                 arrival_time = arrival_data[direction][i]["Arrival"]
 
                 if arrival_data[direction][0]["Arrival"] != 0:
@@ -384,14 +386,13 @@ class Arrivals:
                         south_rectangle.hidden = True
 
                 if arrival_time == 0:
-                    arrival_time = "Due"
                     if direction == "North":
                         north_rectangle.hidden = False
                     else:
                         south_rectangle.hidden = False
 
                 elif arrival_time < 10:
-                    arrival_time = f" {arrival_data[direction][i]["Arrival"]}"
+                    arrival_time = f" {arrival_data[direction][i]['Arrival']}"
 
                 else:
                     arrival_time = str(arrival_data[direction][i]["Arrival"])
@@ -405,9 +406,9 @@ class Arrivals:
             if rows < 4:
                 for n in range(rows, 4):
                     if direction == "North":
-                        arrivals_north_bullets[0,n] = bullet_index["BLANK"]
+                        arrivals_north_bullets[0, n] = bullet_index["BLANK"]
                     else:
-                        arrivals_south_bullets[0,n] = bullet_index["BLANK"]
+                        arrivals_south_bullets[0, n] = bullet_index["BLANK"]
 
     def scroll_board_directions(self):
         while arrivals_south_arrow.y < display.height:
@@ -418,80 +419,71 @@ class Arrivals:
         arrivals_south_arrow.y = -39
 
     def update_display(self, arrival_data, bullet_alert_flag, now):
-        if not wifi.radio.connected:
-            self.wifi_lost_message()
-            return
-        
-        if arrival_data is None:
+        if arrival_data is None or "North" not in arrival_data:
             arrival_label_1.text = "Error"
             arrival_label_2.text = "Error"
             for row in range(2):
-                mta_bullets[0,row] = bullet_index["MTA"]
+                mta_bullets[0, row] = bullet_index["MTA"]
             return
 
-        rows = min(self.default_rows, len(arrival_data[self.default_direction]))
+        all_arrivals = []
+        for line, arrivals in arrival_data["North"].items():
+            all_arrivals.append({
+                "Line": line,
+                "Arrivals": [arrival["Arrival"] for arrival in arrivals[:3]]
+            })
 
-        if rows == 0:
-            for row in range(2):
-                mta_bullets[0,row] = bullet_index["MTA"]
-            arrival_label_1.text = "-1"
-            arrival_label_2.text = "No Svr"
-            return
+        # Sort all arrivals by the first arrival time
+        all_arrivals.sort(key=lambda x: x["Arrivals"][0] if x["Arrivals"] else float('inf'))
 
-        affected_lines = [alert[0] for alert in arrival_data["alerts"]]
+        # Rotate the arrivals
+        if now - self.rotation_interval > self.prev_rotation_time:
+            self.rotation_index = (self.rotation_index + 2) % len(all_arrivals)
+            self.prev_rotation_time = now
 
-        for i in range(rows):
-            self.arrivals_queue[i]["Line"] = arrival_data[self.default_direction][i]["Line"]
-            self.arrivals_queue[i]["Arrival"] = arrival_data[self.default_direction][i]["Arrival"]
-            self.arrivals_queue[i]["FLASH"] = self.alert_flash
-            self.arrivals_queue[i]["PREV_TIME"] = self.prev_time
-            self.arrivals_queue[i]["ALERT"] = False
-            if self.arrivals_queue[i]["Line"] in affected_lines:
-                self.arrivals_queue[i]["ALERT"] = True
+        # Display the current two arrivals in rotation
+        for i in range(2):
+            if i < len(all_arrivals):
+                idx = (self.rotation_index + i) % len(all_arrivals)
+                train = all_arrivals[idx]
 
-        for row, train in enumerate(self.arrivals_queue):
-            arrival_time = train["Arrival"]
-            if arrival_time == 0:
-                arrival_time = "Due"
+                arrival_times = train["Arrivals"]
+                arrival_times_str = ".".join([str(t) for t in arrival_times])
+
+                if i == 0:
+                    arrival_label_1.text = arrival_times_str
+                else:
+                    arrival_label_2.text = arrival_times_str
+
+                affected_lines = [alert[0] for alert in arrival_data["alerts"]]
+
+                if train["Line"] in affected_lines and bullet_alert_flag:
+                    if now - self.prev_flash_time >= 1:  # Flash every second
+                        self.alert_flash = not self.alert_flash
+                        self.prev_flash_time = now
+
+                    if self.alert_flash:
+                        mta_bullets[0, i] = bullet_index["ALERT"]
+                    else:
+                        mta_bullets[0, i] = bullet_index[train["Line"]]
+                else:
+                    mta_bullets[0, i] = bullet_index[train["Line"]]
             else:
-                arrival_time = f"{arrival_time}min"
+                if i == 0:
+                    arrival_label_1.text = "-"
+                else:
+                    arrival_label_2.text = "-"
+                mta_bullets[0, i] = bullet_index["MTA"]
 
-            if row == 0:
-                arrival_label_1.text = arrival_time
 
-            elif row == 1:
-                arrival_label_2.text = arrival_time
-
-            if train["ALERT"] is True and bullet_alert_flag is True:
-                if train["FLASH"]:
-                    if (now >= train["PREV_TIME"] + train["FLASH_OFF"]):
-                        self.prev_time = now
-                        mta_bullets[0,row] = bullet_index["ALERT"]
-                        self.alert_flash = False
-
-                elif train["FLASH"] is False:
-                    if (now >= train["PREV_TIME"] + train["FLASH_ON"]):
-                        self.prev_time = now
-                        mta_bullets[0,row] = bullet_index[train["Line"]]
-                        self.alert_flash = True
-            else:
-                mta_bullets[0,row] = bullet_index[train["Line"]]
-
-        if rows == 1:
-            mta_bullets[0,1] = bullet_index["MTA"]
-            arrival_label_2.text = "-1"
 
     def alert_text(self, arrival_data):
-        if arrival_data is None or arrival_data["alerts"] == []:
+        if arrival_data is None or not arrival_data["alerts"]:
             return "No active alerts."
 
-        i = 1
-        alert_string = ""
-        for alert in arrival_data["alerts"]:
-            alert_string += "{num}.{alert_txt} ".format(num=str(i), alert_txt=alert[1])
-            i += 1
-
+        alert_string = " ".join([f"{i+1}.{alert[1]}" for i, alert in enumerate(arrival_data["alerts"])])
         return alert_string
+
 
 def display_alt_text():
     arrival_label_2.text = ""
@@ -583,7 +575,7 @@ while True:
     if clock_check is None or time.monotonic() > clock_check + 3600:
         try:
             update_time(show_colon=True)
-            network.get_local_time()  # Synchronize board's clock to Internet
+            network.get_local_time()  # Synchronize Board's clock to Internet
         except RuntimeError as e:
             print("CLOCK UPDATE ERROR:", e)
 
@@ -623,8 +615,8 @@ while True:
 
         if api_fails > 5:
             print("API STUCK IN DOOM LOOP, RESET TIME~!")
-            clock_label.text = "reset"
-            time.sleep(120)
+            clock_label.text = "RESET"
+            time.sleep(30)
             supervisor.reload()
 
         alert_text = arrivals.alert_text(arrival_data)
