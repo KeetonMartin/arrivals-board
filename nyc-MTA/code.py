@@ -294,6 +294,7 @@ class Arrivals:
         self.directions = ["North", "South"]
         self.no_service_board = "No\nSer\nvice\n"
         self.default_direction = secrets['default_direction']
+        self.arrival_minimums = secrets.get("arrival_minimums", {})
         self.arrivals_queue = [
                             {"Line" : None,
                              "Arrival" : 0,
@@ -320,15 +321,41 @@ class Arrivals:
         for row in range(2):
             mta_bullets[0,row] = bullet_index["MTA"]
 
+    def station_ids_for_header(self, header):
+        station_ids = header.get("station-ids", header.get("user-station-ids", ""))
+        return [station.strip() for station in station_ids.split(",") if station.strip()]
+
+    def arrival_minimum_for_header(self, header):
+        for station_id in self.station_ids_for_header(header):
+            if station_id in self.arrival_minimums:
+                return self.arrival_minimums[station_id]
+
+        return None
+
+    def filter_arrivals(self, arrival_data, header):
+        arrival_minimum = self.arrival_minimum_for_header(header)
+        if arrival_minimum is None:
+            return arrival_data
+
+        for direction in self.directions:
+            arrival_data[direction] = [
+                train for train in arrival_data[direction]
+                if train["Arrival"] > arrival_minimum
+            ]
+
+        return arrival_data
+
     def api_call(self):
         try:
             if len(self.headers) == 1:
                 arrival_data = network.fetch_data(self.url, json_path=[], headers=self.headers[0])
+                arrival_data = self.filter_arrivals(arrival_data, self.headers[0])
             else:
                 arrival_data = {"North": [], "South": [], "alerts": []}
 
                 for i in range(len(self.headers)):
                     data = network.fetch_data(self.url, json_path=[], headers=self.headers[i])
+                    data = self.filter_arrivals(data, self.headers[i])
                     arrival_data["North"] += data["North"]
                     arrival_data["North"] = sorted(arrival_data["North"], key=lambda x: x["Arrival"])
 

@@ -19,4 +19,13 @@ secrets = {
             "subway-lines": "",
         }  # Subway lines to be displayed, separated by a comma and no spaces
     ],
+    "arrival_minimums": {
+        "638N": 2,  # Hide Spring St uptown arrivals 2 minutes away or less
+        "638S": 2,  # Hide Spring St downtown arrivals 2 minutes away or less
+        "D21N": 3,  # Hide Broadway-Lafayette uptown arrivals 3 minutes away or less
+        "D21S": 3,  # Hide Broadway-Lafayette downtown arrivals 3 minutes away or less
+        "R22N": 3,  # Hide Prince St uptown arrivals 3 minutes away or less
+        "R22S": 3,  # Hide Prince St downtown arrivals 3 minutes away or less
+    },
+    "default_direction": "North",
 }  # For multiple stations, add an additional dictionary to this list
