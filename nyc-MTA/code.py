@@ -15,6 +15,23 @@ import gc
 import wifi
 
 DEBUG = False
+ampm_stamp = {
+                "A": ("010",
+                      "101",
+                      "111",
+                      "101",
+                      "101"),
+                "P": ("110",
+                      "101",
+                      "110",
+                      "100",
+                      "100"),
+                "M": ("101",
+                      "111",
+                      "111",
+                      "101",
+                      "101"),
+              }
 bullet_index = {"A" : 0,
                 "C" : 1,
                 "E" : 2,
@@ -174,7 +191,7 @@ if not DEBUG:
 else:
     font = terminalio.FONT
 
-clock_label = Label(large_font, anchor_point=(0.5,0.5), anchored_position=(44, 7))
+clock_label = Label(large_font, anchor_point=(1.0,0.5), anchored_position=(56, 7))
 
 weather_label = Label(small_font)
 weather_label.x = 4
@@ -539,6 +556,7 @@ def update_time(*, hours=None, minutes=None, show_colon=False):
     now = time.localtime()  # Get the time values we need
     if hours is None:
         hours = now[3]
+    period = "AM" if hours < 12 else "PM"
     #if hours >= 18 or hours < 6:  # evening hours to morning
     #    clock_label.color = color[1]
     #else:
@@ -547,13 +565,33 @@ def update_time(*, hours=None, minutes=None, show_colon=False):
     if minutes is None:
         minutes = now[4]
 
-    clock_label.text = "{hours:02d}:{minutes:02d}".format(
+    hours = hours % 12
+    if hours == 0:
+        hours = 12
+
+    clock_label.text = "{hours}:{minutes:02d}".format(
         hours=hours, minutes=minutes)
+    draw_ampm_stamp(period)
     #bbx, bby, bbwidth, bbh = clock_label.bounding_box
 
     if DEBUG:
         print("Label bounding box: {},{},{},{}".format(bbx, bby, bbwidth, bbh))
         print("Label x: {} y: {}".format(clock_label.x, clock_label.y))
+
+def draw_ampm_stamp(period):
+    x = 57
+    y = 1
+    for clear_y in range(y, y + 5):
+        for clear_x in range(x, x + 7):
+            bitmap[clear_x, clear_y] = 0
+
+    for char in period:
+        stamp = ampm_stamp[char]
+        for row, pixels in enumerate(stamp):
+            for col, pixel in enumerate(pixels):
+                if pixel == "1":
+                    bitmap[x + col, y + row] = 3
+        x += 4
 
 def change_screen():
     default_group.hidden = not default_group.hidden
