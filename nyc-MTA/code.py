@@ -99,6 +99,31 @@ tile_grid = displayio.TileGrid(bitmap, pixel_shader=color,)
 root_group.append(tile_grid)  # ELEMENT 0, Add the TileGrid to the Group
 display.root_group = root_group
 
+ampm_bitmap = displayio.Bitmap(14, 5, 2)
+ampm_palette = displayio.Palette(2)
+ampm_palette[0] = 0x000000
+ampm_palette[1] = 0x00ff00
+ampm_palette.make_transparent(0)
+ampm_tile = displayio.TileGrid(ampm_bitmap,
+                               pixel_shader=ampm_palette,
+                               width=1,
+                               height=1,
+                               tile_width=7,
+                               tile_height=5,
+                               default_tile=0)
+ampm_tile.x = 57
+ampm_tile.y = 1
+
+for tile, period in enumerate(("AM", "PM")):
+    x = tile * 7
+    for char in period:
+        stamp = ampm_stamp[char]
+        for row, pixels in enumerate(stamp):
+            for col, pixel in enumerate(pixels):
+                if pixel == "1":
+                    ampm_bitmap[x + col, row] = 1
+        x += 4
+
 mins_icon = displayio.OnDiskBitmap("/img/mins_icon.bmp")
 mins_tile = displayio.TileGrid(mins_icon, pixel_shader=mins_icon.pixel_shader)
 mins_tile.x = display.width - 5
@@ -571,27 +596,12 @@ def update_time(*, hours=None, minutes=None, show_colon=False):
 
     clock_label.text = "{hours}:{minutes:02d}".format(
         hours=hours, minutes=minutes)
-    draw_ampm_stamp(period)
+    ampm_tile[0] = 0 if period == "AM" else 1
     #bbx, bby, bbwidth, bbh = clock_label.bounding_box
 
     if DEBUG:
         print("Label bounding box: {},{},{},{}".format(bbx, bby, bbwidth, bbh))
         print("Label x: {} y: {}".format(clock_label.x, clock_label.y))
-
-def draw_ampm_stamp(period):
-    x = 57
-    y = 1
-    for clear_y in range(y, y + 5):
-        for clear_x in range(x, x + 7):
-            bitmap[clear_x, clear_y] = 0
-
-    for char in period:
-        stamp = ampm_stamp[char]
-        for row, pixels in enumerate(stamp):
-            for col, pixel in enumerate(pixels):
-                if pixel == "1":
-                    bitmap[x + col, y + row] = 3
-        x += 4
 
 def change_screen():
     default_group.hidden = not default_group.hidden
@@ -616,6 +626,7 @@ default_group = displayio.Group()
 arrivals_group = displayio.Group()
 
 default_group.append(clock_label)  # ELEMENT 1 add the clock label to the default_group
+default_group.append(ampm_tile)
 default_group.append(mta_bullets)      #ELEMENT 2
 default_group.append(aqi_lvl)      #ELEMENT 3
 default_group.append(weather_label) #ELEMENT 4
