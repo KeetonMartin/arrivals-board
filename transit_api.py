@@ -136,34 +136,40 @@ class MTA:
 
     def get_arrivals(self, station_ids, subway_lines):
         arrivals_data = {"North": [], 'South': [], 'alerts' : [] }
+        selected_urls = []
+        subway_lines = [line.strip() for line in subway_lines]
 
-        for line in subway_lines:
-            for url in self.urls:
-                if line in url:
-                    response = requests.get(self.urls[url], headers=self.headers)
-                    self.feed.ParseFromString(response.content)
-                    now = time.time()
-                    for entity in self.feed.entity:
-                        if entity.HasField('trip_update'):
-                            if entity.trip_update.trip.route_id in subway_lines:
-                                for station in entity.trip_update.stop_time_update:
-                                    trip_data = {'Line': '', "N-S": '', "Direction": '', "Arrival": ''}
+        for feed_lines, url in self.urls.items():
+            feed_lines = feed_lines.split(",")
+            if any(line in feed_lines for line in subway_lines):
+                selected_urls.append(url)
 
-                                    if station.stop_id in station_ids:
-                                        arrival = (station.arrival.time - now) / 60
-                                        if arrival < 0 or arrival > 200:
-                                            continue
-                                        trip_data['Line'] = entity.trip_update.trip.route_id
-                                        trip_data['N-S'] = station.stop_id[-1]
-                                        trip_data["Direction"] = mta_stations[entity.trip_update.stop_time_update[-1].stop_id]
-                                        if arrival < 1.0:
-                                            trip_data['Arrival'] = 0
-                                        else:
-                                            trip_data['Arrival'] = round(arrival)
-                                    if trip_data['N-S'] == "N":
-                                        arrivals_data["North"].append(trip_data)
-                                    elif trip_data['N-S'] == "S":
-                                        arrivals_data["South"].append(trip_data)
+        for url in selected_urls:
+            response = requests.get(url, headers=self.headers)
+            feed = gtfs_realtime_pb2.FeedMessage()
+            feed.ParseFromString(response.content)
+            now = time.time()
+            for entity in feed.entity:
+                if entity.HasField('trip_update'):
+                    if entity.trip_update.trip.route_id in subway_lines:
+                        for station in entity.trip_update.stop_time_update:
+                            trip_data = {'Line': '', "N-S": '', "Direction": '', "Arrival": ''}
+
+                            if station.stop_id in station_ids:
+                                arrival = (station.arrival.time - now) / 60
+                                if arrival < 0 or arrival > 200:
+                                    continue
+                                trip_data['Line'] = entity.trip_update.trip.route_id
+                                trip_data['N-S'] = station.stop_id[-1]
+                                trip_data["Direction"] = mta_stations[entity.trip_update.stop_time_update[-1].stop_id]
+                                if arrival < 1.0:
+                                    trip_data['Arrival'] = 0
+                                else:
+                                    trip_data['Arrival'] = round(arrival)
+                            if trip_data['N-S'] == "N":
+                                arrivals_data["North"].append(trip_data)
+                            elif trip_data['N-S'] == "S":
+                                arrivals_data["South"].append(trip_data)
 
         for direction, trains in arrivals_data.items():
             sorted_trains = sorted(trains, key=lambda train: train["Arrival"])
